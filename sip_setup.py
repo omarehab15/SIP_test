@@ -32,8 +32,8 @@ from livekit.protocol.sip import (
     SIPDispatchRule,
     SIPDispatchRuleIndividual,
 )
-from livekit.protocol.models import RoomConfiguration, RoomAgentDispatch
-
+# from livekit.protocol.room import RoomConfiguration
+from livekit.protocol.room import RoomConfiguration, RoomAgent
 load_dotenv(".env.local")
 
 # ── إعدادات LiveKit ──────────────────────────────────────────────────────────
@@ -129,10 +129,10 @@ async def main() -> None:
                             )
                         ),
                         room_config=RoomConfiguration(
-                            agents=[RoomAgentDispatch(
-                                agent_name="inbound-agent",
-                                metadata=metadata,
-                            )]
+                            agents=[RoomAgent(
+                            agent_name="inbound-agent",
+                            metadata=metadata,
+                        )]
                         ),
                     )
                 )

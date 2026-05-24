@@ -1,5 +1,4 @@
-import { Public_Sans } from 'next/font/google';
-import localFont from 'next/font/local';
+import { IBM_Plex_Mono, Public_Sans } from 'next/font/google';
 import { headers } from 'next/headers';
 import { ThemeProvider } from '@/components/app/theme-provider';
 import { ThemeToggle } from '@/components/app/theme-toggle';
@@ -11,31 +10,11 @@ const publicSans = Public_Sans({
   subsets: ['latin'],
 });
 
-const commitMono = localFont({
+const commitMono = IBM_Plex_Mono({
   display: 'swap',
   variable: '--font-commit-mono',
-  src: [
-    {
-      path: '../fonts/CommitMono-400-Regular.otf',
-      weight: '400',
-      style: 'normal',
-    },
-    {
-      path: '../fonts/CommitMono-700-Regular.otf',
-      weight: '700',
-      style: 'normal',
-    },
-    {
-      path: '../fonts/CommitMono-400-Italic.otf',
-      weight: '400',
-      style: 'italic',
-    },
-    {
-      path: '../fonts/CommitMono-700-Italic.otf',
-      weight: '700',
-      style: 'italic',
-    },
-  ],
+  subsets: ['latin'],
+  weight: ['400', '700'],
 });
 
 interface RootLayoutProps {
