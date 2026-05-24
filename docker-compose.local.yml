@@ -1,0 +1,93 @@
+# docker-compose.local.yml — Run on your local machine
+# LiveKit server + LiveKit Agent + Frontend + ngrok (for SIP)
+# STT runs on a remote machine (via Tailscale), LLM + TTS via Groq cloud
+#
+# Usage:
+#   docker compose -f docker-compose.local.yml --env-file .env.local up --build
+
+services:
+
+  # ─── LiveKit Server ──────────────────────────────────────────────────────────
+  livekit:
+    image: livekit/livekit-server:latest
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+    command: --dev --bind "0.0.0.0"
+    networks:
+      - local_network
+
+  # ─── LiveKit Agent ───────────────────────────────────────────────────────────
+  livekit_agent:
+    build:
+      context: ./livekit_agent
+    env_file:
+      - .env.local
+    environment:
+      - LIVEKIT_URL=ws://livekit:7880
+      - LIVEKIT_HOST=ws://livekit:7880
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret}
+      - LIVEKIT_AGENT_PORT=7880
+      # STT — remote (via Tailscale)
+      - STT_PROVIDER=${STT_PROVIDER:-whisper}
+      - STT_BASE_URL=${STT_BASE_URL}
+      - STT_MODEL=${STT_MODEL:-dev-ahmedhany/whisper-large-v3-arabic-ft-v3-ct2-int8}
+      - STT_API_KEY=${STT_API_KEY:-no-key-needed}
+      # LLM + TTS — Groq cloud
+      - GROQ_LLM_MODEL=${GROQ_LLM_MODEL:-llama-3.3-70b-versatile}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - TTS_VOICE=${TTS_VOICE:-fahad}
+    depends_on:
+      livekit:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/ > /dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - local_network
+
+  # ─── Frontend ────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_LIVEKIT_URL=ws://localhost:7880
+      - LIVEKIT_URL=ws://livekit:7880
+      - LIVEKIT_API_KEY=devkey
+      - LIVEKIT_API_SECRET=secret
+    depends_on:
+      livekit:
+        condition: service_started
+    networks:
+      - local_network
+
+  # ─── ngrok (SIP tunnel) ───────────────────────────────────────────────────────
+  # يكشف LiveKit على الإنترنت عشان Twilio يقدر يوصله
+  # مطلوب فقط لتفعيل SIP — ممكن تحذفه لو مش محتاجه
+  ngrok:
+    image: ngrok/ngrok:latest
+    restart: unless-stopped
+    command:
+      - "http"
+      - "--domain=${NGROK_DOMAIN}"
+      - "livekit:7880"
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    depends_on:
+      livekit:
+        condition: service_started
+    networks:
+      - local_network
+    # الـ ngrok dashboard على http://localhost:4040
+    ports:
+      - "4040:4040"
+
+networks:
+  local_network:
+    driver: bridge

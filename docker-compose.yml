@@ -1,0 +1,90 @@
+# docker-compose.yml — Run everything on a single machine
+# Whisper STT (local) + Groq LLM + Groq TTS + LiveKit + Agent + Frontend
+# LLM and TTS are handled by Groq cloud (requires GROQ_API_KEY in .env)
+#
+# Usage:
+#   docker compose up --build
+
+services:
+
+  # ─── STT — Whisper (via VoxBox) ──────────────────────────────────────────────
+  whisper:
+    build:
+      context: ./inference/whisper
+    volumes:
+      - whisper-data:/data
+    environment:
+      - VOXBOX_HF_REPO_ID=${VOXBOX_HF_REPO_ID:-dev-ahmedhany/whisper-large-v3-arabic-ft-v3-ct2-int8}
+      - VOXBOX_DEVICE=${VOXBOX_DEVICE:-cpu}
+      - DATA_DIR=/data
+    ports:
+      - "11435:80"
+    networks:
+      - agent_network
+
+  # ─── LiveKit Server ──────────────────────────────────────────────────────────
+  livekit:
+    image: livekit/livekit-server:latest
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+    command: --dev --bind "0.0.0.0"
+    networks:
+      - agent_network
+
+  # ─── LiveKit Agent ───────────────────────────────────────────────────────────
+  livekit_agent:
+    build:
+      context: ./livekit_agent
+    env_file:
+      - .env
+    environment:
+      - LIVEKIT_URL=ws://livekit:7880
+      - LIVEKIT_HOST=ws://livekit:7880
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret}
+      - LIVEKIT_AGENT_PORT=7880
+      - STT_PROVIDER=${STT_PROVIDER:-whisper}
+      - STT_BASE_URL=http://whisper:80/v1
+      - STT_MODEL=${STT_MODEL:-dev-ahmedhany/whisper-large-v3-arabic-ft-v3-ct2-int8}
+      - STT_API_KEY=no-key-needed
+      - GROQ_LLM_MODEL=${GROQ_LLM_MODEL:-llama-3.3-70b-versatile}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - TTS_VOICE=${TTS_VOICE:-fahad}
+    depends_on:
+      livekit:
+        condition: service_started
+      whisper:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/ > /dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - agent_network
+
+  # ─── Frontend ────────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_LIVEKIT_URL=ws://localhost:7880
+      - LIVEKIT_URL=ws://livekit:7880
+      - LIVEKIT_API_KEY=devkey
+      - LIVEKIT_API_SECRET=secret
+    depends_on:
+      livekit:
+        condition: service_started
+    networks:
+      - agent_network
+
+volumes:
+  whisper-data:
+
+networks:
+  agent_network:
+    driver: bridge
